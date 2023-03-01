@@ -1,5 +1,3 @@
-#! usr/bin/bash
-echo "Writer script started"
 if [ $# -lt 1 ]
 then
 echo "writefile and  writestr was not specified!"

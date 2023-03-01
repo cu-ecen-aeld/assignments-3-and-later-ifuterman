@@ -1,4 +1,3 @@
-#! usr/bin/bash
 echo "Finder script started"
 filesdir=$1
 searchstr=$2
