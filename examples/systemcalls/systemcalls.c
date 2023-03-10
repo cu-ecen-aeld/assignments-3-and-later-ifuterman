@@ -1,4 +1,10 @@
 #include "systemcalls.h"
+#include <sys/wait.h>
+#include <sys/types.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <stdlib.h>
+#include <unistd.h>
 
 /**
  * @param cmd the command to execute with system()
@@ -16,8 +22,13 @@ bool do_system(const char *cmd)
  *   and return a boolean true if the system() call completed with success
  *   or false() if it returned a failure
 */
-
-    return true;
+	int status = 0;
+	status = system(cmd);
+	if( status == -1){
+		return false;
+	}
+	int res = WEXITSTATUS(status);
+	return res ? false : true;
 }
 
 /**
@@ -36,18 +47,18 @@ bool do_system(const char *cmd)
 
 bool do_exec(int count, ...)
 {
-    va_list args;
-    va_start(args, count);
-    char * command[count+1];
-    int i;
-    for(i=0; i<count; i++)
-    {
-        command[i] = va_arg(args, char *);
-    }
-    command[count] = NULL;
-    // this line is to avoid a compile warning before your implementation is complete
-    // and may be removed
-    command[count] = command[count];
+	va_list args;
+	va_start(args, count);
+	char * command[count+1];
+	int i;
+	for(i=0; i<count; i++)
+	{
+		command[i] = va_arg(args, char *);
+	}
+	command[count] = NULL;
+	// this line is to avoid a compile warning before your implementation is complete
+	// and may be removed
+	command[count] = command[count];
 
 /*
  * TODO:
@@ -58,10 +69,29 @@ bool do_exec(int count, ...)
  *   as second argument to the execv() command.
  *
 */
-
-    va_end(args);
-
-    return true;
+	pid_t pid;
+	bool result = true;
+	pid = fork();
+	if(pid == 0){//chid process
+		execv(command[0], command);
+		exit(1);
+	}
+	else if(pid == -1){
+		result = false;
+	}
+	else if(pid > 0){//parent process
+		int status;
+		pid_t chPid = waitpid(pid, &status, 0);
+		if(chPid < 0){
+			result = false;
+		}
+		else{
+			int res = WEXITSTATUS(status);
+			result = res == 0 ? true : false;
+		}
+	}
+	va_end(args);
+	return result;
 }
 
 /**
@@ -93,7 +123,39 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
  *
 */
 
+	pid_t pid;
+	bool result = true;
+	pid = fork();
+	if(pid == 0){//chid process
+	 	int fd;
+	 	fd = creat(outputfile, S_IRUSR | S_IWUSR| S_IRGRP | S_IROTH);
+	 	if( fd < 0){
+	 		abort();
+ 		}
+ 		int ret = dup2(fd, STDOUT_FILENO);
+ 		if(ret < 0){
+ 			abort();
+ 		}
+		execv(command[0], command);
+		close(fd);
+		exit(1);
+	}
+	else if(pid == -1){
+		result = false;
+	}
+	else if(pid > 0){//parent process
+		int status;
+		pid_t chPid = waitpid(pid, &status, 0);
+		if(chPid < 0){
+			result = false;
+		}
+		else{
+			int res = WEXITSTATUS(status);
+			result = res == 0 ? true : false;
+		}
+	}
+
     va_end(args);
 
-    return true;
-}
+    return result;
+} 
