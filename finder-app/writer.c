@@ -28,7 +28,7 @@ int main(int argc, char* argv[]){
 	syslog(LOG_DEBUG, "Writing %s to %s", str, filepath);
 	ssize_t res = write(fd, str, strlen(str));
 	if(res == -1){
-		syslog(LOG_ERR, "Error while writung file %s\n", filepath);
+		syslog(LOG_ERR, "Error while writing file %s\n", filepath);
 		close(fd);
 		return 1;
 	}
