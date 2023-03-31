@@ -165,7 +165,7 @@ int recieve_to_file(int fd, int sockfd){
   char buf[BUFSIZE];
 	
 	int flags = 0;
-
+	char lastChar;
   
   while(work_state){
     res = recv(sockfd, buf, BUFSIZE, flags);
@@ -181,7 +181,15 @@ int recieve_to_file(int fd, int sockfd){
     if(res == 0){
     	break;
     }
+    lastChar = buf[res - 1];
   	res = write_to_file(fd, buf, res);
+  	if(res){
+			syslog(LOG_ERR, "write_to_file FAILED");
+    	return -1;
+  	}
+  }
+  if(lastChar != '\n'){
+  	res = write_to_file(fd, "\n", res);
   	if(res){
 			syslog(LOG_ERR, "write_to_file FAILED");
     	return -1;
