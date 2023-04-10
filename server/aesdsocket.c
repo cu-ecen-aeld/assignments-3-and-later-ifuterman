@@ -1,3 +1,13 @@
+/**
+ * @file aesdsocket.c
+ * @brief This file is to be used to Linux 
+ * Kernel Programming and Introduction to Yocto Project.
+ *
+ * @author Iosif Futerman
+ * @date April 10, 2023
+ *
+ */
+
 #include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
@@ -11,6 +21,8 @@
 #include <arpa/inet.h>
 #include <fcntl.h>
 #include <errno.h>
+#include <pthread.h>
+#include <time.h>
 
 #include "aesdsocket.h"
 
@@ -24,7 +36,10 @@
 
 volatile static int work_state = 1;
 
-int g_fd, g_sfd, g_scfd;//File descriptors for aesdsocketdata file, socket and connection
+int g_fd, g_sfd;//File descriptors for aesdsocketdata file, socket and connection
+static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+static thr_node* g_head = NULL;
+static timer_t g_timer;
 
 int main(int argc, char** argv){    
 	openlog(NULL, LOG_CONS | LOG_PID, LOG_INFO);
@@ -38,6 +53,8 @@ int main(int argc, char** argv){
 	struct sigaction action;
 	memset(&action, 0, sizeof(sigaction));
 	action.sa_handler = signal_handler;
+	sigemptyset(&action.sa_mask); 
+	action.sa_flags = 0;
 	sigaction(SIGINT, &action, NULL);
 	sigaction(SIGTERM, &action, NULL);
 	
@@ -63,7 +80,6 @@ int main(int argc, char** argv){
   
   struct sockaddr_storage their_addr;
   socklen_t addr_size  = sizeof their_addr;
-  char s[INET6_ADDRSTRLEN];
 	int fd;
   int fflags = O_RDWR | O_APPEND | O_CREAT | O_TRUNC;
   
@@ -73,15 +89,36 @@ int main(int argc, char** argv){
 		syslog(LOG_ERR, "open FAILED error:%s", strerror(errno));
 	  return -1;
 	}
-  
+  thr_node* last = NULL;
   while(work_state){
   	syslog(LOG_INFO, "Wait for connection");
-    g_scfd = accept(sockfd, (struct sockaddr *)&their_addr, &addr_size);
-    new_fd = g_scfd;
-    inet_ntop(their_addr.ss_family, get_in_addr((struct sockaddr *)&their_addr), s, sizeof s);
+    new_fd = accept(sockfd, (struct sockaddr *)&their_addr, &addr_size);
+		if(new_fd == -1){
+			break;
+		}
+		char* s = malloc(INET6_ADDRSTRLEN);
+    inet_ntop(their_addr.ss_family, get_in_addr((struct sockaddr *)&their_addr), s, INET6_ADDRSTRLEN);
     syslog(LOG_INFO, "Accepted connection from %s; new_fd: %d", s, new_fd);
   	
-    if(recieve_to_file(fd, new_fd)){
+  	struct proc_data * data = malloc(sizeof(struct proc_data));
+  	data->fd = fd;
+  	data->sd = new_fd;
+  	data->address = s;
+  	pthread_t thr;
+  	
+  	pthread_create(&thr, NULL, connection_processor, (void*)data);
+  	
+  	thr_node* current = malloc(sizeof(thr_node));
+  	current->thr = thr;
+  	current->next = NULL;
+  	if(g_head == NULL){
+  		g_head = current;
+  	}
+  	else{
+  		last->next = current;
+  	}
+		last = current;
+/*    if(recieve_to_file(fd, new_fd)){
     	closelog();
     	close(fd);
     	close(new_fd);
@@ -96,11 +133,31 @@ int main(int argc, char** argv){
     	return -1;
 		}
   	close(new_fd);
-    syslog(LOG_INFO, "Closed connection from %s", s);
+    syslog(LOG_INFO, "Closed connection from %s", s);*/
   }
-	close(fd);
-	close(sockfd);
-	closelog();
+  deinit();
+  exit (EXIT_SUCCESS);
+}
+
+void deinit(){
+	deinit_timer();
+	thr_node* current = g_head;
+	while(current != NULL){
+		struct proc_data* data;
+		pthread_join(current->thr, ((void**)&data));
+		
+		free(data->address);
+		close(data->sd);
+		free(data);
+		
+		thr_node* next = current->next;
+		free(current);
+		current = next;
+	}
+	close(g_sfd);
+	close(g_fd);
+	unlink(FILEPATH);
+	
 }
 
 int write_to_file(int fd, const char* buf, size_t n_byte){
@@ -242,6 +299,7 @@ int init_server(int argc, char** argv){
 	else{
 		syslog(LOG_INFO, "Proces mode");
 	}
+	init_timer();
 	return 0;
 }
 
@@ -301,8 +359,59 @@ void signal_handler(int signo){
 	syslog(LOG_INFO, "Caught signal, exiting");
 	work_state = 0;
 	close(g_sfd);
-	close(g_scfd);
-	close(g_fd);
-	unlink(FILEPATH);
-	exit (EXIT_SUCCESS);
+}
+
+void* connection_processor(void* arg){
+	struct proc_data* data = (struct proc_data*)arg;
+	
+	pthread_mutex_lock(&mutex);
+	int res = recieve_to_file(data->fd, data->sd);
+	pthread_mutex_unlock(&mutex);
+	
+  if(res || !work_state){
+		close(data->sd);
+		pthread_exit(arg);
+	}	
+	
+	pthread_mutex_lock(&mutex);
+	send_from_file(data->fd, data->sd);
+	pthread_mutex_unlock(&mutex);
+	
+	close(data->sd);
+  syslog(LOG_INFO, "Closed connection from %s", data->address);
+	pthread_exit(arg);
+}
+
+void init_timer(){
+	struct sigevent event;
+	memset(&event, 0, sizeof(struct sigevent));
+	event.sigev_notify = SIGEV_THREAD;
+	event.sigev_notify_function = &timer_handler;
+	event.sigev_value.sival_ptr = &g_timer;
+	timer_create(CLOCK_REALTIME, &event, &g_timer);
+	struct timespec spec;
+	memset(&spec, 0, sizeof(struct timespec));
+	spec.tv_sec = 10;
+	spec.tv_nsec = 0;
+	struct itimerspec set;
+	set.it_interval = spec;
+	set.it_value = spec;
+	timer_settime(g_timer, 0, &set, NULL);
+}
+void deinit_timer(){
+	struct itimerspec set;
+	memset(&set, 0, sizeof(	struct itimerspec));
+	timer_settime(g_timer, 0, &set, NULL);
+}
+
+void timer_handler(sigval_t val){
+	time_t now;
+	now = time(NULL);
+	struct tm* time = localtime(&now);
+	char* format = "timestamp:%a, %d %b %Y %T %z\n";
+	char str_time[50];
+	size_t str_size = strftime(str_time, 50, format, time);
+	pthread_mutex_lock(&mutex);
+	write_to_file(g_fd, str_time, str_size);
+	pthread_mutex_unlock(&mutex);
 }

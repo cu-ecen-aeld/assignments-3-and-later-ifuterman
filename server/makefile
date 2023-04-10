@@ -10,7 +10,7 @@
 #      clean - removes all generated files
 #
 #------------------------------------------------------------------------------
-PLATFORM = HOST
+PLATFORM ?= HOST
 CROSS_COMPILE = 
 
 ifeq ($(PLATFORM), AARCH64)
@@ -19,12 +19,13 @@ endif
 
 CC=$(CROSS_COMPILE)gcc
 CFLAGS = -Wall -Werror
+LD = -pthread -lrt
 #SOURCES = aesdsocket.c
 #OBJ=$(SOURCES:.c=.o)
 TARGET ?= aesdsocket
 
 all:
-	$(CC) -o $(TARGET) aesdsocket.c $(CFLAGS)
+	$(CC) -o $(TARGET) aesdsocket.c $(CFLAGS) $(LD)
 
 default: all
 	
