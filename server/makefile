@@ -10,24 +10,21 @@
 #      clean - removes all generated files
 #
 #------------------------------------------------------------------------------
-PLATFORM ?= HOST
-CROSS_COMPILE = 
-
-ifeq ($(PLATFORM), AARCH64)
-	CROSS_COMPILE = aarch64-none-linux-gnu-
-endif
-
-CC=$(CROSS_COMPILE)gcc
-CFLAGS = -Wall -Werror
-#LD = -pthread -lrt
-#SOURCES = aesdsocket.c
-#OBJ=$(SOURCES:.c=.o)
+SRC ?= aesdsocket.c
 TARGET ?= aesdsocket
+OBJS := $(SRC:.c=.o)
+CC ?= $(CROSS_COMPILE)gcc
+CFLAGS ?= -g -Wall -Werror
+LDFLAGS ?= -lpthread -lrt
 
-all:
-	$(CC) -o $(TARGET) aesdsocket.c $(CFLAGS) #$(LD)
+all:  $(TARGET)
+	$(CC) $(CFLAGS) -o $(INCLUDES) $(TARGET) $(SRC) $(LDFLAGS)
+	#$(CC) -o $(TARGET) aesdsocket.c $(CFLAGS) $(LDFLAGS)
 
 default: all
+
+$(TARGET) : $(TARGET).c
+	$(CC) $(CFLAGS) -o $(INCLUDES) $(TARGET) $(SRC) $(LDFLAGS)
 	
 .PHONY: clean
 clean:
