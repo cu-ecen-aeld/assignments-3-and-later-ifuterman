@@ -416,6 +416,7 @@ void timer_handler(sigval_t val){
 	char str_time[50];
 	size_t str_size = strftime(str_time, 50, format, time);
 	syslog(LOG_INFO, "watchdog %s", str_time);
+	printf("WATCHDOG %s", str_time);
 	pthread_mutex_lock(&mutex);
 	write_to_file(g_fd, str_time, str_size);
 	pthread_mutex_unlock(&mutex);
