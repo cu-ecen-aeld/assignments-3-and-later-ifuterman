@@ -120,7 +120,6 @@ int main(int argc, char** argv){
   		last->next = current;
   	}
 		last = current;
-		struct proc_data* data;
 		syslog(LOG_INFO, "Try join before accept");
 		pthread_join(current->thr, ((void**)&data));
   }
