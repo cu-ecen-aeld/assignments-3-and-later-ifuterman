@@ -32,7 +32,7 @@
 
 #define FILEPATH "/var/tmp/aesdsocketdata"
 
-#define BUFSIZE 1048576
+#define BUFSIZE 512
 
 volatile static int work_state = 1;
 
