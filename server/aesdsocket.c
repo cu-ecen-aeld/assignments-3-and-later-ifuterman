@@ -120,8 +120,6 @@ int main(int argc, char** argv){
   		last->next = current;
   	}
 		last = current;
-		syslog(LOG_INFO, "Try join before accept");
-		pthread_join(current->thr, ((void**)&data));
   }
   deinit();
   exit (EXIT_SUCCESS);
