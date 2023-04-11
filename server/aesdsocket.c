@@ -94,8 +94,10 @@ int main(int argc, char** argv){
   	syslog(LOG_INFO, "Wait for connection");
     new_fd = accept(sockfd, (struct sockaddr *)&their_addr, &addr_size);
 		if(new_fd == -1){
+			syslog(LOG_INFO, "accept FAILED");
 			break;
 		}
+		syslog(LOG_INFO, "Socket accepted");
 		char* s = malloc(INET6_ADDRSTRLEN);
     inet_ntop(their_addr.ss_family, get_in_addr((struct sockaddr *)&their_addr), s, INET6_ADDRSTRLEN);
     syslog(LOG_INFO, "Accepted connection from %s; new_fd: %d", s, new_fd);
