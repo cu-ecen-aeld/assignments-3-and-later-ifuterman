@@ -367,7 +367,8 @@ void* connection_processor(void* arg){
 	
 //	close(data->sd);
   syslog(LOG_INFO, "Closed connection from %s", data->address);
-	pthread_exit(arg);
+  return arg;
+//	pthread_exit(arg);
 }
 
 void init_timer(){
