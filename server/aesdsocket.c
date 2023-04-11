@@ -379,7 +379,7 @@ void* connection_processor(void* arg){
 	send_from_file(data->fd, data->sd);
 	pthread_mutex_unlock(&mutex);
 	
-	close(data->sd);
+//	close(data->sd);
   syslog(LOG_INFO, "Closed connection from %s", data->address);
 	pthread_exit(arg);
 }
