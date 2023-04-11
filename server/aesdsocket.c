@@ -120,22 +120,9 @@ int main(int argc, char** argv){
   		last->next = current;
   	}
 		last = current;
-/*    if(recieve_to_file(fd, new_fd)){
-    	closelog();
-    	close(fd);
-    	close(new_fd);
-    	close(sockfd);
-    	return -1;
-    }
-		if(send_from_file(fd, new_fd)){
-    	closelog();
-    	close(fd);
-    	close(new_fd);
-    	close(sockfd);
-    	return -1;
-		}
-  	close(new_fd);
-    syslog(LOG_INFO, "Closed connection from %s", s);*/
+		struct proc_data* data;
+		syslog(LOG_INFO, "Try join before accept");
+		pthread_join(current->thr, ((void**)&data));
   }
   deinit();
   exit (EXIT_SUCCESS);
