@@ -18,8 +18,6 @@ CFLAGS ?= -g -Wall -Werror
 LDFLAGS ?= -lpthread -lrt
 
 all:  $(TARGET)
-	$(CC) $(CFLAGS) -o $(INCLUDES) $(TARGET) $(SRC) $(LDFLAGS)
-	#$(CC) -o $(TARGET) aesdsocket.c $(CFLAGS) $(LDFLAGS)
 
 default: all
 

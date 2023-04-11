@@ -326,7 +326,7 @@ int init_socket(){
   	if(p->ai_family != AF_INET){
   		continue;
   	}
-    syslog(LOG_INFO, "Try to get socket");
+    syslog(LOG_INFO, "Try to get socket p->ai_family %d; p->ai_socktype %d; p->ai_protocol %d", p->ai_family, p->ai_socktype,	p->ai_protocol);
 	  sockfd = socket(p->ai_family, p->ai_socktype,	p->ai_protocol);
     if (sockfd == -1) {
 	  	syslog(LOG_WARNING, "socket FAILED");
@@ -390,7 +390,8 @@ void init_timer(){
 	event.sigev_notify = SIGEV_THREAD;
 	event.sigev_notify_function = &timer_handler;
 	event.sigev_value.sival_ptr = &g_timer;
-	timer_create(CLOCK_REALTIME, &event, &g_timer);
+	int res = timer_create(CLOCK_REALTIME, &event, &g_timer);
+	syslog(LOG_INFO, "Timer reated with res %d", res);
 	struct timespec spec;
 	memset(&spec, 0, sizeof(struct timespec));
 	spec.tv_sec = 10;
@@ -398,7 +399,8 @@ void init_timer(){
 	struct itimerspec set;
 	set.it_interval = spec;
 	set.it_value = spec;
-	timer_settime(g_timer, 0, &set, NULL);
+	res = timer_settime(g_timer, 0, &set, NULL);
+	syslog(LOG_INFO, "Timer setted with res %d", res);
 }
 void deinit_timer(){
 	struct itimerspec set;
