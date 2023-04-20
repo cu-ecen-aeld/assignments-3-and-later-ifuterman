@@ -1,0 +1,6 @@
+#!/bin/sh
+module=aesdchar
+device=aesdchar
+mode="777"
+
+chmod $mode  /dev/${device}
