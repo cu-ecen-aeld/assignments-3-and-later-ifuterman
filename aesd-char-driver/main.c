@@ -80,6 +80,7 @@ ssize_t aesd_read(struct file *filp, char __user *buf, size_t count,
 	copied = copy_to_user(buf, entry->buffptr + offset, entry->size - offset);
 	mutex_unlock(&dev->mutex_lock);
 	*f_pos += copied;
+  PDEBUG("readed %zu bytes",copied);
   return copied;
 }
 
@@ -115,14 +116,15 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
 	}
 	aesd_circular_buffer_add_entry(&dev->circular_buffer, &entry);
 	mutex_unlock(&dev->mutex_lock);
+  PDEBUG("writed %zu bytes",copied);
 	return copied;
 }
 struct file_operations aesd_fops = {
     .owner =    THIS_MODULE,
-    .read =     aesd_read,
-    .write =    aesd_write,
-    .open =     aesd_open,
-    .release =  aesd_release,
+//    .read =     aesd_read,
+//    .write =    aesd_write,
+//    .open =     aesd_open,
+//    .release =  aesd_release,
 };
 
 static int aesd_setup_cdev(struct aesd_dev *dev)
@@ -154,9 +156,7 @@ int aesd_init_module(void)
     }
     memset(&aesd_device,0,sizeof(struct aesd_dev));
 
-    /**
-     * TODO: initialize the AESD specific portion of the device
-     */
+
 		mutex_init(&aesd_device.mutex_lock);
 		aesd_circular_buffer_init(&aesd_device.circular_buffer);
     result = aesd_setup_cdev(&aesd_device);
@@ -171,17 +171,16 @@ int aesd_init_module(void)
 void aesd_cleanup_module(void)
 {
 	uint8_t index;
-	struct aesd_circular_buffer buffer;
 	struct aesd_buffer_entry *entry;
 	dev_t devno = MKDEV(aesd_major, aesd_minor);
 
 	cdev_del(&aesd_device.cdev);
 
-    /**
-     * TODO: cleanup AESD specific poritions here as necessary
-     */
-	AESD_CIRCULAR_BUFFER_FOREACH(entry,&buffer,index) {
-		kfree(entry->buffptr);
+
+	AESD_CIRCULAR_BUFFER_FOREACH(entry,&aesd_device.circular_buffer,index) {
+		if(entry->buffptr){
+			kfree(entry->buffptr);
+		}
 	}  
 	mutex_destroy(&aesd_device.mutex_lock);
   unregister_chrdev_region(devno, 1);
