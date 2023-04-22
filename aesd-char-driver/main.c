@@ -52,6 +52,19 @@ int aesd_release(struct inode *inode, struct file *filp)
   return 0;
 }
 
+void printBuffer(void);
+void printBuffer(){
+	uint8_t index;
+	struct aesd_buffer_entry *entry;
+	PDEBUG("PRINT BUFFER START");	
+	AESD_CIRCULAR_BUFFER_FOREACH(entry,&aesd_device.circular_buffer,index) {
+		if(entry->buffptr){
+			PDEBUG("Entry i:%d buffptr:%s", index, entry->buffptr);
+		}
+	}  
+	PDEBUG("PRINT BUFFER END");	
+}
+
 ssize_t aesd_read(struct file *filp, char __user *buf, size_t count,
                 loff_t *f_pos)
 {
@@ -65,24 +78,29 @@ ssize_t aesd_read(struct file *filp, char __user *buf, size_t count,
 	{
 		return 0;
 	}
-	if(!kbuf){
-		return -ENOMEM;
-	}
+//	PDEBUG("READ! PRINT BUFFER BEFORE");
+	/////////////////////////////////////////////////////////////////////////////
+//	printBuffer();
+	/////////////////////////////////////////////////////////////////////////////
 	kcount = 0;
   retval = 0;
 	offset = 0;
-  PDEBUG("read %zu bytes with offset %lld",count,*f_pos);
+//  PDEBUG("READ! %zu bytes with offset %lld",count,*f_pos);
   dev = (struct aesd_dev *)filp->private_data;
 	retval = mutex_lock_interruptible(&dev->mutex_lock);
 	if(retval){
 		return -ERESTARTSYS;
 	}
 	bytes_to_read = 0;
+//	PDEBUG("READ! BRFORE WHILE; count:%ld", count);
 	while(count > 0){
 		entry = aesd_circular_buffer_find_entry_offset_for_fpos(&dev->circular_buffer, *f_pos, &offset);
+//		PDEBUG("READ! INSIDE WHILE; count:%ld; *f_pos:%lld", count, *f_pos);
 		if(!entry){
+//			PDEBUG("READ! ENTRY IS NULL");
 			break;
 		}
+//		PDEBUG("READ! ENTRY FOUNDED; entry->buffptr:%s;entry->size:%ld;offset:%ld", entry->buffptr, entry->size, offset);
 		if(entry->size - offset > count){
 			bytes_to_read = count;
 			count = 0;
@@ -91,9 +109,10 @@ ssize_t aesd_read(struct file *filp, char __user *buf, size_t count,
 			bytes_to_read = entry->size - offset;
 			count -= bytes_to_read;
 		}
+//		PDEBUG("I WILL COPY FROM BUF; kcount: %ld;offset%ld;bytes_to_read:%ld;entry->size:%ld",kcount,offset,bytes_to_read,entry->size);
 		retval = copy_to_user(buf + kcount, entry->buffptr + offset, bytes_to_read);
 		kcount += bytes_to_read;
-		*fpos += kcount - retval;
+		*f_pos += bytes_to_read;
 		if(retval){
 			mutex_unlock(&dev->mutex_lock);
 			return kcount - retval;
@@ -109,34 +128,76 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
 //  *f_pos += count;
   ssize_t retval;
 	struct aesd_dev *dev;
-	struct aesd_buffer_entry entry;
+	struct aesd_buffer_entry* entry;
+	struct aesd_buffer_entry new_entry;
 	size_t uncopied;
+	size_t offset;
+	char* kbuf;
+	int entry_index;
+	entry_index = -1;
+	kbuf = NULL;
+	offset = 0;
+	entry = NULL;
 	retval = -ENOMEM;
 	uncopied = 0;
 	dev = NULL;
-  PDEBUG("write %zu bytes with offset %lld",count,*f_pos);
-	dev = (struct aesd_dev *)filp->private_data;
-	entry.buffptr = kmalloc(sizeof(char) * count, GFP_KERNEL);
-	if(!entry.buffptr){
-	  PDEBUG("WRITE!KMALLOC FAILED");
-		return retval;
-	}
-	uncopied = copy_from_user((void*)entry.buffptr, buf, count);
-	if(uncopied){
-	  PDEBUG("WRITE! uncopied %lu bytes", uncopied);
-  }
-	entry.size = count - uncopied;
 
+  PDEBUG("write %zu bytes with offset %lld; buf:%s",count,*f_pos, buf);
+	dev = (struct aesd_dev *)filp->private_data;
+	
 	retval = mutex_lock_interruptible(&dev->mutex_lock);
   PDEBUG("MUTEX LOCK with retval: %ld", retval);
 	if(retval){
-		kfree(entry.buffptr);
 		return -ERESTARTSYS;
+	}	
+	if(dev->circular_buffer.in_offs){
+		entry_index = dev->circular_buffer.in_offs - 1;
 	}
-	if(dev->circular_buffer.entry[dev->circular_buffer.in_offs].buffptr){
-		kfree(dev->circular_buffer.entry[dev->circular_buffer.in_offs].buffptr);
+	else if(dev->circular_buffer.full){
+		entry_index =	AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED - 1;
 	}
-	aesd_circular_buffer_add_entry(&dev->circular_buffer, &entry);
+	if(entry_index != -1){
+		PDEBUG("WRITE! checking for nl; entry_index: %d", entry_index);
+		entry = &dev->circular_buffer.entry[entry_index];
+		PDEBUG("WRITE! entry->bufptr: %s; entry->size:%ld, entry_index:%d", entry->buffptr, entry->size, entry_index);
+		if(*(entry->buffptr + entry->size - 1) == '\n'){
+			entry_index = -1;
+		} else {
+				PDEBUG("WRITE! FOUND!");
+				offset = entry->size;
+				entry->size = offset + count;
+				entry->buffptr = krealloc(entry->buffptr, sizeof(char) * (entry->size), GFP_KERNEL);
+				memset((void*)(entry->buffptr + offset), 0, count);
+				PDEBUG("WRITE! updated entry! offset:%ld; entry->size:%ld; entry->buffptr:%s", offset, entry->size, entry->buffptr);
+		}
+	}
+	if(entry_index == -1){
+		new_entry.buffptr = kmalloc(sizeof(char) * count, GFP_KERNEL);
+		memset((void*)new_entry.buffptr, 0, count);
+		if(dev->circular_buffer.entry[dev->circular_buffer.in_offs].buffptr){
+			kfree(dev->circular_buffer.entry[dev->circular_buffer.in_offs].buffptr);
+		}
+		aesd_circular_buffer_add_entry(&dev->circular_buffer, &new_entry);
+		if(dev->circular_buffer.in_offs){
+			entry_index = dev->circular_buffer.in_offs - 1;
+		}
+		else {
+			entry_index =	AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED - 1;
+		}
+		entry = &dev->circular_buffer.entry[entry_index];
+		entry->size = count;
+	}
+	if(!entry->buffptr){
+	  PDEBUG("WRITE!KMALLOC FAILED");
+		mutex_unlock(&dev->mutex_lock);
+		return retval;
+	}
+	uncopied = copy_from_user((void*)entry->buffptr + offset, buf, count);
+	PDEBUG("WRITE! entry->buffptr: %s", entry->buffptr);
+	if(uncopied){
+	  PDEBUG("WRITE! uncopied %lu bytes", uncopied);
+  }
+	entry->size -= uncopied;
 	mutex_unlock(&dev->mutex_lock);
   *f_pos += count - uncopied;
 	return count - uncopied;

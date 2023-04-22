@@ -30,7 +30,15 @@
 
 #define BACKLOG 10   // how many pending connections queue will hold
 
+#ifndef USE_AESD_CHAR_DEVICE
+#define USE_AESD_CHAR_DEVICE 1
+#endif
+
+#if USE_AESD_CHAR_DEVICE
 #define FILEPATH "/var/tmp/aesdsocketdata"
+#else
+#define FILEPATH "/dev/aesdchar"
+#endif
 
 #define BUFSIZE 512
 
@@ -142,7 +150,9 @@ void deinit(){
 	}
 	close(g_sfd);
 	close(g_fd);
-	unlink(FILEPATH);
+	if(!USE_AESD_CHAR_DEVICE){
+		unlink(FILEPATH);
+	}
 	
 }
 
@@ -370,6 +380,10 @@ void* connection_processor(void* arg){
 }
 
 void init_timer(){
+	if(USE_AESD_CHAR_DEVICE)
+	{
+		return;
+	}
 	struct sigevent event;
 	memset(&event, 0, sizeof(struct sigevent));
 	event.sigev_notify = SIGEV_THREAD;
@@ -388,6 +402,10 @@ void init_timer(){
 	syslog(LOG_INFO, "Timer setted with res %d", res);
 }
 void deinit_timer(){
+	if(USE_AESD_CHAR_DEVICE)
+	{
+		return;
+	}
 	struct itimerspec set;
 	memset(&set, 0, sizeof(	struct itimerspec));
 	timer_settime(g_timer, 0, &set, NULL);
