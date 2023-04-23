@@ -412,6 +412,10 @@ void deinit_timer(){
 }
 
 void timer_handler(sigval_t val){
+	if(USE_AESD_CHAR_DEVICE)
+	{
+		return;
+	}
 	time_t now;
 	now = time(NULL);
 	struct tm* time = localtime(&now);
