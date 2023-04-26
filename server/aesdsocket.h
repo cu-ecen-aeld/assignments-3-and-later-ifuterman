@@ -110,7 +110,7 @@ void timer_handler(sigval_t val);
  * Structure for sending data to the thread with socket handling
  */
 struct proc_data{
-	int fd; /*File descriptor for a log file*/
+//	int fd; /*File descriptor for a log file*/
 	int sd; /*Socket descriptor*/
 	char* address;
 };

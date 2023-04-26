@@ -45,7 +45,8 @@
 
 volatile static int work_state = 1;
 
-int g_fd, g_sfd;//File descriptors for aesdsocketdata file, socket and connection
+//int g_fd, g_sfd;//File descriptors for aesdsocketdata file, socket and connection
+int g_sfd;//File descriptors for aesdsocketdata file, socket and connection
 static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 static thr_node* g_head = NULL;
 static timer_t g_timer;
@@ -89,15 +90,9 @@ int main(int argc, char** argv){
   
   struct sockaddr_storage their_addr;
   socklen_t addr_size  = sizeof their_addr;
-	int fd;
-  int fflags = O_RDWR | O_APPEND | O_CREAT | O_TRUNC;
+//  int fflags = O_RDWR | O_APPEND | O_CREAT | O_TRUNC;
   
-  g_fd = open(FILEPATH, fflags, 0666);
-  fd = g_fd;
-  if(fd == -1){
-		syslog(LOG_ERR, "open FAILED error:%s", strerror(errno));
-	  return -1;
-	}
+
   thr_node* last = NULL;
   while(work_state){
   	syslog(LOG_INFO, "Wait for connection");
@@ -112,7 +107,7 @@ int main(int argc, char** argv){
     syslog(LOG_INFO, "Accepted connection from %s; new_fd: %d", s, new_fd);
   	
   	struct proc_data * data = malloc(sizeof(struct proc_data));
-  	data->fd = fd;
+//  	data->fd = fd;
   	data->sd = new_fd;
   	data->address = s;
   	pthread_t thr;
@@ -150,7 +145,7 @@ void deinit(){
 		current = next;
 	}
 	close(g_sfd);
-	close(g_fd);
+//	close(g_fd);
 	if(!USE_AESD_CHAR_DEVICE){
 		unlink(FILEPATH);
 	}
@@ -390,20 +385,27 @@ void signal_handler(int signo){
 
 void* connection_processor(void* arg){
 	struct proc_data* data = (struct proc_data*)arg;
-	
+	int fd;
+	int fflags = O_RDWR | O_APPEND | O_CREAT | O_TRUNC;
+  fd = open(FILEPATH, fflags, 0666);
+  if(fd == -1){
+		syslog(LOG_ERR, "open FAILED error:%s", strerror(errno));
+	  return arg;
+	}
 	pthread_mutex_lock(&mutex);
-	int res = recieve_to_file(data->fd, data->sd);
+	int res = recieve_to_file(fd, data->sd);
 	pthread_mutex_unlock(&mutex);
 	
   if(res || !work_state){
 		close(data->sd);
+		close(fd);
 		pthread_exit(arg);
 	}	
 	
 	pthread_mutex_lock(&mutex);
-	send_from_file(data->fd, data->sd);
+	send_from_file(fd, data->sd);
 	pthread_mutex_unlock(&mutex);
-	
+	close(fd);
 //	close(data->sd);
   syslog(LOG_INFO, "Closed connection from %s", data->address);
   return arg;
@@ -447,6 +449,13 @@ void timer_handler(sigval_t val){
 	{
 		return;
 	}
+	int fflags = O_RDWR | O_APPEND | O_CREAT | O_TRUNC;
+	int fd;
+  fd = open(FILEPATH, fflags, 0666);
+  if(fd == -1){
+		syslog(LOG_ERR, "open FAILED error:%s", strerror(errno));
+		return;
+	}
 	time_t now;
 	now = time(NULL);
 	struct tm* time = localtime(&now);
@@ -456,6 +465,7 @@ void timer_handler(sigval_t val){
 	syslog(LOG_INFO, "watchdog %s", str_time);
 	printf("WATCHDOG %s", str_time);
 	pthread_mutex_lock(&mutex);
-	write_to_file(g_fd, str_time, str_size);
+	write_to_file(fd, str_time, str_size);
 	pthread_mutex_unlock(&mutex);
+	close(fd);
 }
