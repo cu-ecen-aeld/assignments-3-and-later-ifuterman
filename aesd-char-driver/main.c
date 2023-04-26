@@ -70,6 +70,7 @@ ssize_t aesd_read(struct file *filp, char __user *buf, size_t count,
 	size_t offset;
 	size_t kcount;
 	size_t bytes_to_read;
+	PDEBUG("AESD_READ!!! loff_t f_pos:%lld; file->f_pos:%lld", *f_pos, filp->f_pos);	
 	if(!count)
 	{
 		return 0;
@@ -85,7 +86,7 @@ ssize_t aesd_read(struct file *filp, char __user *buf, size_t count,
 	bytes_to_read = 0;
 
 	while(count > 0){
-		entry = aesd_circular_buffer_find_entry_offset_for_fpos(&dev->circular_buffer, *f_pos, &offset);
+		entry = aesd_circular_buffer_find_entry_offset_for_fpos(&dev->circular_buffer, filp->f_pos, &offset);
 
 		if(!entry){
 			break;
@@ -103,6 +104,7 @@ ssize_t aesd_read(struct file *filp, char __user *buf, size_t count,
 		retval = copy_to_user(buf + kcount, entry->buffptr + offset, bytes_to_read);
 		kcount += bytes_to_read;
 		*f_pos += bytes_to_read;
+		filp->f_pos += bytes_to_read;
 		if(retval){
 			mutex_unlock(&dev->mutex_lock);
 			return kcount - retval;
@@ -182,19 +184,24 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
   }
 	entry->size -= uncopied;
 	mutex_unlock(&dev->mutex_lock);
-  *f_pos += count - uncopied;
+//	filp->f_pos = 0;
+//  *f_pos += count - uncopied;
+	*f_pos = 0;
 	return count - uncopied;
 }
 
 loff_t aesd_llseek (struct file *filp, loff_t off, int whence){
 	loff_t retval;
 	struct aesd_dev *dev;
+	PDEBUG("LLSEEK!");
 	dev = (struct aesd_dev *)filp->private_data;
 	retval = mutex_lock_interruptible(&dev->mutex_lock);
 	if(retval){
 		return -ERESTARTSYS;
 	}	
+	PDEBUG("LLSEEK! off:%lld; whence:%d; dev->circular_buffer.size:%ld, filp->f_pos:%lld", off, whence, dev->circular_buffer.size, filp->f_pos);
 	retval = fixed_size_llseek(filp, off, whence, dev->circular_buffer.size);
+	PDEBUG("LLSEEK! after fixed filp->f_pos:%lld", filp->f_pos);
 	mutex_unlock(&dev->mutex_lock);
 	return retval;
 }
@@ -215,23 +222,31 @@ long aesd_adjust_file_offset(struct file *filp, uint32_t write_cmd, uint32_t wri
 
 long aesd_ioctl(struct file *filp, unsigned int cmd, unsigned long arg){
 	long retval;
+	PDEBUG("BEIGIN IOCTL!!! cmd:%d",cmd);
 	switch(cmd){
 		case AESDCHAR_IOCSEEKTO: {
 			struct aesd_seekto seek_to;
-			if(copy_from_user(&seek_to, (const void __user* )&arg, sizeof(struct aesd_seekto)))
+			PDEBUG("AESDCHAR_IOCSEEKTO");
+			if(copy_from_user(&seek_to, (const void __user* )arg, sizeof(struct aesd_seekto)))
 			{
+				PDEBUG("AESDCHAR_IOCSEEKTO!!! copy_from_user FAULT");
 				return -EFAULT;
 			}
+			PDEBUG("AESDCHAR_IOCSEEKTO!!! seek_to.write_cmd:%d; seek_to.write_cmd_offset:%d", seek_to.write_cmd, seek_to.write_cmd_offset);
 			retval = aesd_adjust_file_offset(filp, seek_to.write_cmd, seek_to.write_cmd_offset);
+			if(retval >= 0){
+				filp->f_pos = retval;
+			}
+			PDEBUG("AESDCHAR_IOCSEEKTO!!! retval:%ld;", retval);
 			break;
 		}
 		default:
+			PDEBUG("IOCTL default case!");
 			return -ENOTTY;
 	}
 	if(retval == -1){
 		retval = -EINVAL;
 	}
-	filp->f_pos = retval;
 	return retval;
 }
 

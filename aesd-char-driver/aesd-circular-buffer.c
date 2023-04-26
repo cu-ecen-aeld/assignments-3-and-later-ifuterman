@@ -119,9 +119,9 @@ long aesd_circular_buffer_get_offset_for_byte(struct aesd_circular_buffer *buffe
 			}
 			return offset + off;
 		}
+		cur_entry_offset++;
 		offset += buffer->entry[i].size;
 	}		
-	
 	if(!buffer->full)
 	{
 		return offset;
@@ -133,6 +133,7 @@ long aesd_circular_buffer_get_offset_for_byte(struct aesd_circular_buffer *buffe
 			}
 			return offset + off;
 		}
+		cur_entry_offset++;
 		offset += buffer->entry[i].size;
 	}	
 	for(i = 0; i < buffer->out_offs; i++){
@@ -142,6 +143,7 @@ long aesd_circular_buffer_get_offset_for_byte(struct aesd_circular_buffer *buffe
 			}
 			return offset + off;
 		}
+		cur_entry_offset++;
 		offset += buffer->entry[i].size;
 	}		
 	return -1;

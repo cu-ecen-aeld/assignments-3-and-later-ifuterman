@@ -1,0 +1,5 @@
+#!/bin/sh
+make clean
+make
+./aesdsocket -d
+../assignment-autotest/test/assignment9/sockettest.sh

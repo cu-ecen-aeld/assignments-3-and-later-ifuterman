@@ -35,7 +35,7 @@
 #define USE_AESD_CHAR_DEVICE 1
 #endif
 
-#if USE_AESD_CHAR_DEVICE
+#if !USE_AESD_CHAR_DEVICE
 #define FILEPATH "/var/tmp/aesdsocketdata"
 #else
 #define FILEPATH "/dev/aesdchar"
@@ -254,9 +254,16 @@ int recieve_to_file(int fd, int sockfd){
 //    lastChar = buf[res - 1];
 		start_cursor = strstr(buf, "AESDCHAR_IOCSEEKTO:");
 		if(start_cursor){
+			syslog(LOG_INFO, "COMMAND founded! COMMAND:%s\n", buf);
 			struct aesd_seekto cmd;
 			if(!parse_seek_to(buf, &cmd.write_cmd, &cmd.write_cmd_offset)){
-				return ioctl(fd, AESDCHAR_IOCSEEKTO, &cmd);
+				syslog(LOG_INFO, "COMMAND parsed! write_cmd:%d;write_cmd_offset:%d\n", cmd.write_cmd, cmd.write_cmd_offset);
+				res = ioctl(fd, AESDCHAR_IOCSEEKTO, &cmd);
+				if(res < 0){
+					syslog(LOG_INFO, "IOCTL FAILED res:%d\n", res);
+					return -1;
+				}
+				return 0;
 			}
 		}
   	res = write_to_file(fd, buf, res);
