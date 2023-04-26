@@ -25,6 +25,7 @@
 #include <time.h>
 
 #include "aesdsocket.h"
+#include "../aesd-char-driver/aesd_ioctl.h"
 
 #define PORT "9000"  // the port users will be connecting to
 
@@ -212,11 +213,27 @@ int send_from_file(int fd, int sockfd){
 	return 0;
 }
 
+int parse_seek_to(char* buf, uint32_t* write_cmd, uint32_t* write_cmd_offset){
+	int32_t res;
+	buf = strtok(buf, ":");
+	res = strtol(strtok(NULL, ","), NULL, 10);
+	if(res < 0){
+		return -1;
+	}
+	*write_cmd = res;
+	res = strtol(strtok(NULL, "\n"), NULL, 10);
+	if(res < 0){
+		return -1;
+	}
+	*write_cmd_offset = res;
+	return 0;
+}
+
 int recieve_to_file(int fd, int sockfd){
 
   int res; 
   char buf[BUFSIZE];
-	
+  char *start_cursor;
 	int flags = 0;
 //	char lastChar;
   
@@ -235,6 +252,13 @@ int recieve_to_file(int fd, int sockfd){
     	break;
     }
 //    lastChar = buf[res - 1];
+		start_cursor = strstr(buf, "AESDCHAR_IOCSEEKTO:");
+		if(start_cursor){
+			struct aesd_seekto cmd;
+			if(!parse_seek_to(buf, &cmd.write_cmd, &cmd.write_cmd_offset)){
+				return ioctl(fd, AESDCHAR_IOCSEEKTO, &cmd);
+			}
+		}
   	res = write_to_file(fd, buf, res);
   	if(res){
 			syslog(LOG_ERR, "write_to_file FAILED");

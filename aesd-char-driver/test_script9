@@ -1,0 +1,7 @@
+#!/bin/sh
+sudo ./aesdchar_unload
+make clean
+make
+echo > /dev/null | sudo tee /var/log/syslog
+sudo ./aesdchar_load
+../assignment-autotest/test/assignment9/drivertest.sh

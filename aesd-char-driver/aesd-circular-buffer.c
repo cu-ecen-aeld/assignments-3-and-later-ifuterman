@@ -26,8 +26,7 @@
  * @return the struct aesd_buffer_entry structure representing the position described by char_offset, or
  * NULL if this position is not available in the buffer (not enough data is written).
  */
-struct aesd_buffer_entry *aesd_circular_buffer_find_entry_offset_for_fpos(struct aesd_circular_buffer *buffer,
-            size_t char_offset, size_t *entry_offset_byte_rtn )
+struct aesd_buffer_entry *aesd_circular_buffer_find_entry_offset_for_fpos(struct aesd_circular_buffer *buffer, size_t char_offset, size_t *entry_offset_byte_rtn )
 {
 		int offset;
 		int i;
@@ -79,7 +78,9 @@ struct aesd_buffer_entry *aesd_circular_buffer_find_entry_offset_for_fpos(struct
 */
 void aesd_circular_buffer_add_entry(struct aesd_circular_buffer *buffer, const struct aesd_buffer_entry *add_entry)
 {
+	buffer->size -= buffer->entry[buffer->in_offs].size + add_entry->size;
 	buffer->entry[buffer->in_offs] = *add_entry;
+	
 	if(buffer->in_offs == buffer->out_offs && buffer->full){
 		buffer->out_offs++;
 	}
@@ -95,6 +96,55 @@ void aesd_circular_buffer_add_entry(struct aesd_circular_buffer *buffer, const s
 	if(buffer->out_offs == AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED){
 		buffer->out_offs = 0;
 	}
+}
+
+long aesd_circular_buffer_get_offset_for_byte(struct aesd_circular_buffer *buffer, uint32_t entry_off, uint32_t off)
+{
+	uint32_t i;
+	uint32_t cur_entry_offset;
+	long offset;
+	offset = 0;
+	cur_entry_offset = 0;
+	if(entry_off > AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED)
+	{
+		return -1;
+	}
+	for(i = buffer->out_offs; i < buffer->in_offs; i++)
+	{
+		if(cur_entry_offset == entry_off)
+		{
+			if(off > buffer->entry[i].size)
+			{
+				return -1;
+			}
+			return offset + off;
+		}
+		offset += buffer->entry[i].size;
+	}		
+	
+	if(!buffer->full)
+	{
+		return offset;
+	}
+	for(i = buffer->out_offs; i < AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED; i++){
+		if(cur_entry_offset == entry_off){
+			if(off > buffer->entry[i].size){
+				return -1;
+			}
+			return offset + off;
+		}
+		offset += buffer->entry[i].size;
+	}	
+	for(i = 0; i < buffer->out_offs; i++){
+		if(cur_entry_offset == entry_off){
+			if(off > buffer->entry[i].size){
+				return -1;
+			}
+			return offset + off;
+		}
+		offset += buffer->entry[i].size;
+	}		
+	return -1;
 }
 
 /**

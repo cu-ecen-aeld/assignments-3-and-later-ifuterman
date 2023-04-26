@@ -97,6 +97,9 @@ void init_timer();
  * @return void
  */
 void deinit_timer();
+
+int parse_seek_to(char* buf, uint32_t *write_cmd, uint32_t *write_cmd_offset);
+
 /**
  * @brief This function calls by kerner each 10 seconds, if init_timer was called
  * This function appends tiimestamps to the file with conversation log
